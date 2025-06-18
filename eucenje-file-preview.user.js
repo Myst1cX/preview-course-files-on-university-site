@@ -2,9 +2,9 @@
 // @name         Preview .DOCX and PDF Files on E-Ucenje
 // @namespace    http://tampermonkey.net/
 // @version      2.2
-// @description  Preview PDFs and DOCX files using blob URLs (auth-friendly, open in new tab).
+// @description  Preview PDFs and DOCX files using blob URLs
 // @author       Myst1cX
-// @match        *://*/*
+// @match        *://e-ucenje.ff.uni-lj.si/*
 // @grant        GM_xmlhttpRequest
 // @connect      e-ucenje.ff.uni-lj.si
 // @homepageURL  https://github.com/Myst1cX/preview-course-files-on-university-site

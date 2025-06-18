@@ -1,27 +1,20 @@
 // ==UserScript==
 // @name         Preview .DOCX and PDF Files on VIS
 // @namespace    http://tampermonkey.net/
-// @version      3.1
-// @description  Preview DOCX files using blob + mammoth.js viewer with theme switcher. Other docs open via Google Docs Viewer embed. PDF is natively supported by the browser.
+// @version      3.3
+// @description  Preview DOCX and PDF files using blob URLs.
 // @author       Myst1cX
-// @match        *://*/*
+// @match        *://visff.uni-lj.si/*
 // @grant        GM_xmlhttpRequest
 // @connect      *
-// @homepageURL  https://github.com/Myst1cX/preview-course-files-on-university-site
-// @supportURL   https://github.com/Myst1cX/preview-course-files-on-university-site/issues
-// @updateURL    https://raw.githubusercontent.com/Myst1cX/preview-course-files-on-university-site/main/vis-file-preview.user.js
-// @downloadURL  https://raw.githubusercontent.com/Myst1cX/preview-course-files-on-university-site/main/vis-file-preview.user.js
 // ==/UserScript==
 
 (function() {
     'use strict';
 
     const supportedExtensions = [
-        '.doc', '.docx',
-        '.ppt', '.pptx',
-        '.xls', '.xlsx',
-        '.rtf', '.txt',
-        '.odt', '.ods', '.odp'
+        '.docx',
+        '.pdf'
     ];
 
     const eyeIconSVG = `
@@ -91,6 +84,16 @@
         });
     }
 
+    async function openPdfBlobViewer(url) {
+        try {
+            const blob = await fetchFileAsBlob(url, 'application/pdf');
+            const blobUrl = URL.createObjectURL(blob);
+            window.open(blobUrl, '_blank');
+        } catch (e) {
+            alert('Error loading PDF:\n' + e.message);
+        }
+    }
+
     async function openDocxBlobViewer(url) {
         try {
             const blob = await fetchFileAsBlob(url, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -98,7 +101,6 @@
 
             const mammothJsUrl = 'https://unpkg.com/mammoth/mammoth.browser.min.js';
 
-            // Convert arrayBuffer to a JSON-serializable array for inline use
             const uint8Array = new Uint8Array(arrayBuffer);
             const uint8ArrayJson = JSON.stringify(Array.from(uint8Array));
 
@@ -109,7 +111,6 @@
 <meta charset="UTF-8" />
 <title>DOCX Preview</title>
 <style id="theme-style">
-    /* Dropdown always fixed */
     .theme-switcher {
         position: fixed;
         top: 10px;
@@ -123,7 +124,6 @@
         color: black;
         cursor: pointer;
     }
-    /* Base styles */
     body {
         font-family: sans-serif;
         padding: 20px;
@@ -178,7 +178,6 @@
 
         function applyTheme(theme) {
             styleTag.innerHTML = \`
-                /* Keep dropdown fixed */
                 .theme-switcher {
                     position: fixed;
                     top: 10px;
@@ -192,8 +191,6 @@
                     color: black;
                     cursor: pointer;
                 }
-
-                /* Base styles */
                 body {
                     font-family: sans-serif;
                     padding: 20px;
@@ -220,8 +217,6 @@
                     border: 1px solid #ccc;
                     padding: 6px;
                 }
-
-                /* Theme colors */
                 \${themes[theme]}
             \`;
         }
@@ -236,7 +231,6 @@
             localStorage.setItem('docxPreviewTheme', selected);
         });
 
-        // Recreate ArrayBuffer from JSON array
         const uint8ArrayData = ${uint8ArrayJson};
         const arrayBuffer = new Uint8Array(uint8ArrayData).buffer;
 
@@ -273,11 +267,15 @@
 
         const ext = fullUrl.split('?')[0].toLowerCase();
         const isDocx = ext.endsWith('.docx');
+        const isPdf = ext.endsWith('.pdf');
+
+        if (!isDocx && !isPdf) return; // Only process DOCX and PDF
 
         const btn = document.createElement('button');
         btn.className = 'preview-icon-btn';
         btn.type = 'button';
-        btn.title = isDocx ? 'Preview DOCX Document' : 'Preview Document (Google Docs Viewer)';
+
+        btn.title = isDocx ? 'Preview DOCX Document' : 'Preview PDF Document';
         btn.innerHTML = eyeIconSVG;
 
         btn.addEventListener('click', e => {
@@ -286,14 +284,8 @@
 
             if (isDocx) {
                 openDocxBlobViewer(fullUrl);
-            } else {
-                const previewWindow = window.open('', '_blank');
-                if (!previewWindow) {
-                    alert('Popup blocked! Please allow popups for this site.');
-                    return;
-                }
-                const encoded = encodeURIComponent(fullUrl);
-                previewWindow.location.href = `https://docs.google.com/gview?embedded=true&url=${encoded}`;
+            } else if (isPdf) {
+                openPdfBlobViewer(fullUrl);
             }
         });
 
