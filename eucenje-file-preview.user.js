@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Preview .DOCX and PDF Files on E-Ucenje
+// @name         Preview PDFs, DOCX and PPTX files on E-Ucenje
 // @namespace    http://tampermonkey.net/
-// @version      2.2
-// @description  Preview PDFs and DOCX files using blob URLs
+// @version      2.3
+// @description  The files are previewed in a new tab using blob URLs.
 // @author       Myst1cX
 // @match        *://e-ucenje.ff.uni-lj.si/*
 // @grant        GM_xmlhttpRequest
@@ -17,13 +17,14 @@
     'use strict';
 
     const isEUcenje = location.hostname.includes('e-ucenje.ff.uni-lj.si');
-    const wordDocExts = ['.doc', '.docx'];
+    const supportedExtensions = ['.doc', '.docx', '.pptx'];
     const pdfjsViewerBase = 'https://mozilla.github.io/pdf.js/web/viewer.html?file=';
 
     const isMoodleResourceLink = url => {
-        try { return isEUcenje && new URL(url).pathname.includes('/mod/resource/view.php'); }
-        catch { return false; }
+      try { return isEUcenje && new URL(url).pathname.includes('/mod/resource/view.php'); }
+      catch { return false; }
     };
+
 
     function resolveUrl(url) {
         try { return new URL(url, location.href).href; }
@@ -73,6 +74,169 @@
             alert('Error loading PDF:\n' + e.message);
         }
     }
+
+    async function openPptxWithPptxJs(url) {
+    try {
+        const blob = await fetchFileAsBlob(
+            url,
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        );
+        const pptxBlobUrl = URL.createObjectURL(blob);
+
+        const rawFileName = url.split('/').pop().split('?')[0];
+        const fileName = decodeURIComponent(rawFileName);
+        const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>${fileName}</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/css/pptxjs.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/css/nv.d3.min.css" />
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background: #222;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1.5;
+        }
+        #viewer {
+            width: 100%;
+            max-width: 90vw;
+            height: 80vh;
+            margin: 20px auto;
+            overflow: auto;
+            border: 1px solid #444;
+            background-color: #111;
+            position: relative;
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            hyphens: auto !important;
+            padding: 16px 20px;
+            box-sizing: border-box;
+        }
+        #viewer span.text-block {
+            display: inline-block;
+            max-width: 100%;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            hyphens: auto !important;
+            margin-right: 6px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/jquery-1.11.3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/jquery.fullscreen-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/filereader.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/nv.d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/dingbat.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/pptxjs.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/divs2slides.js"></script>
+</head>
+<body>
+    <h1>${fileName}</h1>
+    <div id="viewer"></div>
+    <script>
+        $("#viewer").pptxToHtml({
+            pptxFileUrl: "${pptxBlobUrl}",
+            slideMode: false,
+            keyBoardShortCut: false,
+            mediaProcess: true,
+            themeProcess: true,
+            slideType: "divs2slidesjs"
+        });
+
+        function fixTextNodes(node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                node.textContent = node.textContent.replace(/\\u00A0/g, ' ');
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                node.querySelectorAll('span.text-block').forEach(el => {
+                    el.style.whiteSpace = 'normal';
+                    el.style.wordBreak = 'break-word';
+                    el.style.overflowWrap = 'break-word';
+                    el.style.hyphens = 'auto';
+                    el.style.maxWidth = '100%';
+                    el.style.display = 'inline-block';
+                    el.style.marginRight = '6px';
+                });
+                node.childNodes.forEach(child => fixTextNodes(child));
+            }
+        }
+
+        function fixSpanTypos() {
+            document.querySelectorAll('span.text-block').forEach(el => {
+                const span = document.createElement('span');
+                span.className = el.className;
+                span.style.cssText = el.style.cssText;
+                el.childNodes.forEach(child => {
+                    span.appendChild(child.cloneNode(true));
+                });
+                fixTextNodes(span);
+                el.parentNode.replaceChild(span, el);
+            });
+        }
+
+        function fixMissingSpacesBetweenSpans(container) {
+            const spans = container.querySelectorAll('span.text-block');
+            for (let i = 0; i < spans.length - 1; i++) {
+                const current = spans[i];
+                const next = spans[i + 1];
+                const currentLastChar = current.textContent.slice(-1);
+                const nextFirstChar = next.textContent.charAt(0);
+                if (currentLastChar !== ' ' && nextFirstChar !== ' ') {
+                    current.parentNode.insertBefore(document.createTextNode(' '), next);
+                }
+            }
+        }
+
+        let fixScheduled = false;
+        function scheduleFixes() {
+            if (fixScheduled) return;
+            fixScheduled = true;
+            requestAnimationFrame(() => {
+                fixSpanTypos();
+                fixTextNodes(document.getElementById('viewer'));
+                fixMissingSpacesBetweenSpans(document.getElementById('viewer'));
+                fixScheduled = false;
+            });
+        }
+
+        const viewer = document.getElementById('viewer');
+        const observer = new MutationObserver(mutations => {
+            scheduleFixes();
+        });
+
+        observer.observe(viewer, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+        });
+
+        setTimeout(() => {
+            fixSpanTypos();
+            fixTextNodes(viewer);
+            fixMissingSpacesBetweenSpans(viewer);
+        }, 2000);
+    </script>
+</body>
+</html>`;
+
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const blobUrl = URL.createObjectURL(htmlBlob);
+        window.open(blobUrl, '_blank');
+    } catch (e) {
+        alert('Error loading PPTX preview:\n' + e.message);
+    }
+}
+
+
 
     async function openDocxWithMammoth(url) {
         try {
@@ -252,56 +416,83 @@
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
         <circle cx="12" cy="12" r="3"></circle></svg>`;
 
-    function addPreviewButtons() {
-        document.querySelectorAll('a[href]').forEach(link => {
-            const href = link.getAttribute('href');
-            const fullUrl = resolveUrl(href);
-            if (!fullUrl) return;
+function getFileExtension(url) {
+    const match = url.split('?')[0].match(/\.([a-z0-9]+)$/i);
+    return match ? match[1].toLowerCase() : null;
+}
 
-            if (link.parentNode.classList.contains('preview-wrapper')) return;
+function isForumAttachmentUrl(url) {
+    return url.includes('pluginfile.php') && url.includes('/mod_forum/attachment/');
+}
 
-            const ext = fullUrl.split('?')[0].toLowerCase();
+function addPreviewButtons() {
+    document.querySelectorAll('a[href]').forEach(link => {
+        const href = link.getAttribute('href');
+        const fullUrl = resolveUrl(href);
+        if (!fullUrl) return;
 
-            const isPreviewable = (
-                isEUcenje && (ext.endsWith('.pdf') || wordDocExts.some(e => ext.endsWith(e)))
-            ) || isMoodleResourceLink(fullUrl);
+        if (link.parentNode.classList.contains('preview-wrapper')) return;
 
-            if (!isPreviewable) return;
+        const lowerUrl = fullUrl.toLowerCase();
+        const ext = getFileExtension(lowerUrl);
 
-            const wrapper = document.createElement('div');
-            wrapper.className = 'preview-wrapper';
+const isPreviewable = (
+    isEUcenje && (
+        ext && supportedExtensions.includes(`.${ext}`) ||
+        isMoodleResourceLink(fullUrl) ||
+        isForumAttachmentUrl(fullUrl)
+    )
+);
 
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'preview-icon-btn';
-            btn.title = 'Preview Document';
-            btn.innerHTML = eyeIcon;
+        if (!isPreviewable) return;
 
-            btn.addEventListener('click', async e => {
-                e.preventDefault();
-                e.stopPropagation();
+        const wrapper = document.createElement('div');
+        wrapper.className = 'preview-wrapper';
 
-                let targetUrl = fullUrl;
-                if (isMoodleResourceLink(targetUrl)) {
-                    targetUrl = await getFinalUrl(targetUrl);
-                }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'preview-icon-btn';
+        btn.title = 'Preview Document';
+        btn.innerHTML = eyeIcon;
 
-                if (targetUrl.toLowerCase().endsWith('.pdf')) {
-                    await openPdfBlobViewer(targetUrl);
-                } else if (targetUrl.toLowerCase().endsWith('.docx')) {
-                    await openDocxWithMammoth(targetUrl);
-                } else if (targetUrl.toLowerCase().endsWith('.doc')) {
-                    alert('Preview not supported for .doc files. Please convert to .docx to view.');
-                } else {
-                    alert('Preview not supported for this file type.');
-                }
-            });
+        btn.addEventListener('click', async e => {
+            e.preventDefault();
+            e.stopPropagation();
 
-            link.parentNode.insertBefore(wrapper, link);
-            wrapper.appendChild(btn);
-            wrapper.appendChild(link);
-        });
+            let targetUrl = fullUrl;
+
+            if (isMoodleResourceLink(targetUrl) || isForumAttachmentUrl(targetUrl)) {
+                targetUrl = await getFinalUrl(targetUrl);
+            }
+
+            const finalExt = getFileExtension(targetUrl);
+
+            if (finalExt === 'pdf') {
+    await openPdfBlobViewer(targetUrl);
+} else if (finalExt === 'docx' || finalExt === 'doc') {
+    if (finalExt === 'doc') {
+        alert('Preview not supported for .doc files. Please convert to .docx to view.');
+    } else {
+        await openDocxWithMammoth(targetUrl);
     }
+} else if (finalExt === 'pptx' || finalExt === 'ppt') {
+    if (finalExt === 'ppt') {
+        alert('Preview not supported for .ppt files. Please convert to .pptx to view.');
+    } else {
+        await openPptxWithPptxJs(targetUrl);
+    }
+} else {
+    alert('Preview not supported for this file type.');
+}
+
+        });
+
+        link.parentNode.insertBefore(wrapper, link);
+        wrapper.appendChild(btn);
+        wrapper.appendChild(link);
+    });
+}
+
 
     if (!document.getElementById('preview-pdf-css')) {
         document.head.insertAdjacentHTML('beforeend', `
