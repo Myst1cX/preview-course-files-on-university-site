@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Preview .DOCX and PDF Files on VIS
+// @name         Preview PDFs and DOCX Files on VIS
 // @namespace    http://tampermonkey.net/
 // @version      3.3
-// @description  Preview DOCX and PDF files using blob URLs.
+// @description  The files are previewed in a new tab using blob URLs.
 // @author       Myst1cX
 // @match        *://visff.uni-lj.si/*
 // @grant        GM_xmlhttpRequest
