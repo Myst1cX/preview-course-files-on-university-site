@@ -7,10 +7,10 @@
 // @match        *://visff.uni-lj.si/*
 // @grant        GM_xmlhttpRequest
 // @connect      visff.uni-lj.si
-// @homepageURL  https://github.com/Myst1cX/preview-course-files-on-university-site
-// @supportURL   https://github.com/Myst1cX/preview-course-files-on-university-site/issues
-// @updateURL    https://raw.githubusercontent.com/Myst1cX/preview-course-files-on-university-site/main/vis-file-preview.user.js
-// @downloadURL  https://raw.githubusercontent.com/Myst1cX/preview-course-files-on-university-site/main/vis-file-preview.user.js
+// @homepageURL  https://github.com/Myst1cX/uni-preview-course-files
+// @supportURL   https://github.com/Myst1cX/uni-preview-course-files/issues
+// @updateURL    https://raw.githubusercontent.com/Myst1cX/uni-preview-course-files/main/vis-file-preview.user.js
+// @downloadURL  https://raw.githubusercontent.com/Myst1cX/uni-preview-course-files/main/vis-file-preview.user.js
 // ==/UserScript==
 
 (function() {
