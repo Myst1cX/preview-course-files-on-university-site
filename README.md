@@ -1,5 +1,5 @@
-# preview-course-files-on-university-site
-
+# Preview PDF, .DOCX .PPTX and .XLSX course-related files on VIS and E-Ucenje university websites.
+ 
 TO-DO LIST: 
 
 > Instead of preview buttons displaying for incompatible .doc/.ppt/.xls and prompting conversion into appropriate .docx/.pptx/.xlsx formats, next update will likely only show the icons for the compatible formats.
