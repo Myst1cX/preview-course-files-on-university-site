@@ -1,4 +1,7 @@
-# Preview PDF, .DOCX .PPTX and .XLSX course-related files on VIS and E-Ucenje university websites.
+# UNI-PREVIEW-COURSE-FILES
+
+FUNCTION: 
+> Preview PDF, .DOCX .PPTX and .XLSX course-related files on VIS and E-Ucenje university websites.
  
 TO-DO LIST: 
 
