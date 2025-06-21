@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Preview PDFs, DOCX and PPTX files on E-Ucenje
+// @name         Preview PDFs, .DOCX, .PPTX and .XLSX files on E-Ucenje
 // @namespace    http://tampermonkey.net/
-// @version      2.3
+// @version      3.8
 // @description  The files are previewed in a new tab using blob URLs.
 // @author       Myst1cX
 // @match        *://e-ucenje.ff.uni-lj.si/*
@@ -17,7 +17,7 @@
     'use strict';
 
     const isEUcenje = location.hostname.includes('e-ucenje.ff.uni-lj.si');
-    const supportedExtensions = ['.doc', '.docx', '.pptx'];
+    const supportedExtensions = ['.doc', '.docx', '.pptx', '.xlsx'];
     const pdfjsViewerBase = 'https://mozilla.github.io/pdf.js/web/viewer.html?file=';
 
     const isMoodleResourceLink = url => {
@@ -66,14 +66,46 @@
     }
 
     async function openPdfBlobViewer(url) {
-        try {
-            const blob = await fetchFileAsBlob(url, 'application/pdf');
-            const blobUrl = URL.createObjectURL(blob);
-            window.open(blobUrl, '_blank');
-        } catch (e) {
-            alert('Error loading PDF:\n' + e.message);
+    try {
+        const blob = await fetchFileAsBlob(url, 'application/pdf');
+        const blobUrl = URL.createObjectURL(blob);
+
+        const rawFileName = url.split('/').pop().split('?')[0];
+        const fileName = decodeURIComponent(rawFileName);
+
+        const viewerHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>${fileName}</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
         }
+        iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <iframe src="${blobUrl}" allow="fullscreen"></iframe>
+</body>
+</html>`;
+
+        const viewerBlob = new Blob([viewerHtml], { type: 'text/html' });
+        const viewerBlobUrl = URL.createObjectURL(viewerBlob);
+
+        window.open(viewerBlobUrl, '_blank');
+    } catch (e) {
+        alert('Error loading PDF:\n' + e.message);
     }
+}
 
     async function openPptxWithPptxJs(url) {
     try {
@@ -85,12 +117,12 @@
 
         const rawFileName = url.split('/').pop().split('?')[0];
         const fileName = decodeURIComponent(rawFileName);
-        const htmlContent = `<!DOCTYPE html>
+        const htmlContent = `
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8" />
     <title>${fileName}</title>
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/css/pptxjs.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/css/nv.d3.min.css" />
     <style>
@@ -141,7 +173,6 @@
     <script src="https://cdn.jsdelivr.net/gh/meshesha/PPTXjs/js/divs2slides.js"></script>
 </head>
 <body>
-    <h1>${fileName}</h1>
     <div id="viewer"></div>
     <script>
         $("#viewer").pptxToHtml({
@@ -236,8 +267,6 @@
     }
 }
 
-
-
     async function openDocxWithMammoth(url) {
         try {
             const blob = await fetchFileAsBlob(url, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -245,12 +274,15 @@
 
             const mammothJsUrl = 'https://unpkg.com/mammoth/mammoth.browser.min.js';
 
+            const rawFileName = url.split('/').pop().split('?')[0];
+            const fileName = decodeURIComponent(rawFileName);
+
             const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>DOCX Preview</title>
+    <title>${fileName}</title>
     <style id="theme-style">
         /* Always keep dropdown fixed */
         .theme-switcher {
@@ -411,6 +443,160 @@
         }
     }
 
+    async function openXlsxWithSheetJs(url) {
+    try {
+        const blob = await fetchFileAsBlob(url, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        const arrayBuffer = await blob.arrayBuffer();
+
+        const sheetJsUrl = 'https://unpkg.com/xlsx/dist/xlsx.full.min.js';
+
+        const rawFileName = url.split('/').pop().split('?')[0];
+        const fileName = decodeURIComponent(rawFileName);
+
+        const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${fileName}</title>
+    <style id="theme-style">
+        .theme-switcher {
+            position: fixed;
+            top: 10px;
+            right: 20px;
+            z-index: 9999;
+            font-size: 14px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background: white;
+            color: black;
+            cursor: pointer;
+        }
+
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 95vw;
+            margin: auto;
+            line-height: 1.6;
+            overflow-x: auto;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 1em;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px;
+            text-align: left;
+        }
+    </style>
+    <script src="${sheetJsUrl}"></script>
+</head>
+<body>
+    <select class="theme-switcher" aria-label="Select theme">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="sepia">Sepia</option>
+    </select>
+    <div id="output">Loading...</div>
+    <script>
+        const themes = {
+            light: \`
+                body { background: #fff; color: #000; }
+            \`,
+            dark: \`
+                body { background: #121212; color: #e0e0e0; }
+                table, th, td { border-color: #444; }
+            \`,
+            sepia: \`
+                body { background: #f4ecd8; color: #5b4636; }
+            \`
+        };
+
+        const styleTag = document.getElementById('theme-style');
+        const themeSwitcher = document.querySelector('.theme-switcher');
+
+        function applyTheme(theme) {
+            styleTag.innerHTML = \`
+                .theme-switcher {
+                    position: fixed;
+                    top: 10px;
+                    right: 20px;
+                    z-index: 9999;
+                    font-size: 14px;
+                    padding: 4px 6px;
+                    border-radius: 4px;
+                    border: 1px solid #ccc;
+                    background: white;
+                    color: black;
+                    cursor: pointer;
+                }
+
+                body {
+                    font-family: sans-serif;
+                    padding: 20px;
+                    max-width: 95vw;
+                    margin: auto;
+                    line-height: 1.6;
+                    overflow-x: auto;
+                }
+
+                table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin-top: 1em;
+                }
+                th, td {
+                    border: 1px solid #ccc;
+                    padding: 6px;
+                    text-align: left;
+                }
+
+                \${themes[theme]}
+            \`;
+        }
+
+        const savedTheme = localStorage.getItem('xlsxPreviewTheme') || 'light';
+        themeSwitcher.value = savedTheme;
+        applyTheme(savedTheme);
+
+        themeSwitcher.addEventListener('change', e => {
+            const selected = e.target.value;
+            applyTheme(selected);
+            localStorage.setItem('xlsxPreviewTheme', selected);
+        });
+
+        const arrayBuffer = new Uint8Array(${JSON.stringify([...new Uint8Array(arrayBuffer)])}).buffer;
+        const data = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        const output = document.getElementById('output');
+        output.innerHTML = "";
+
+        workbook.SheetNames.forEach(sheetName => {
+            const html = XLSX.utils.sheet_to_html(workbook.Sheets[sheetName]);
+            const sheetDiv = document.createElement("div");
+            sheetDiv.innerHTML = "<h2>" + sheetName + "</h2>" + html;
+            output.appendChild(sheetDiv);
+        });
+    </script>
+</body>
+</html>
+`;
+
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const viewerUrl = URL.createObjectURL(htmlBlob);
+        window.open(viewerUrl, '_blank');
+
+    } catch (e) {
+        alert('Error loading XLSX preview:\n' + e.message);
+    }
+}
+
     const eyeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -480,6 +666,12 @@ const isPreviewable = (
         alert('Preview not supported for .ppt files. Please convert to .pptx to view.');
     } else {
         await openPptxWithPptxJs(targetUrl);
+    }
+} else if (finalExt === 'xlsx' || finalExt === 'xls') {
+    if (finalExt === 'xls') {
+        alert('Preview not supported for .xls files. Please convert to .xlsx to view.');
+    } else {
+        await openXlsxWithSheetJs(targetUrl);
     }
 } else {
     alert('Preview not supported for this file type.');
